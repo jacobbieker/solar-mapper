@@ -10,7 +10,9 @@
 
 ## Description
 
-This repo attempts to continue and extend [this work](https://github.com/Lkruitwagen/solar-pv-global-inventory) on mapping global solar panel locations, with creating updated maps of their locations since the end of the data in that paper to now on a continuous basis. The Solar PV Inventory used Sentinel-2 data as well as high-resolution satellite imagery to detect solar plants and panels. To try to eliminate the need for expensive high resolution imagery, this project uses the [WorldStrat](https://worldstrat.github.io/) model for super-resolution of Sentinel-2 imagery instead. This project would most likely run on Microsoft's [Planetary Computer](https://planetarycomputer.microsoft.com/catalog) as it already has the Sentinel-2 data with the STAC spec to easily query and use the imagery. 
+This repo attempts to continue and extend [this work](https://github.com/Lkruitwagen/solar-pv-global-inventory) on mapping global solar panel locations, with creating updated maps of their locations since the end of the data in that paper to now on a continuous basis. The Solar PV Inventory used Sentinel-2 data as well as high-resolution satellite imagery to detect solar plants and panels. To try to eliminate the need for expensive high resolution imagery, this project uses the [WorldStrat](https://worldstrat.github.io/) model for super-resolution of Sentinel-2 imagery instead. This project would most likely run on Microsoft's [Planetary Computer](https://planetarycomputer.microsoft.com/catalog) as it already has the Sentinel-2 data with the STAC spec to easily query and use the imagery.
+
+Another paper on the subject, with an accompanying dataset is [this one](https://www.mdpi.com/2072-4292/15/1/210).
 
 ## How to run
 
