@@ -1,8 +1,8 @@
 # --------- pytorch --------- #
-torch>=1.10.0
+torch>=2.0.0
 torchvision>=0.11.0
-pytorch-lightning==2.0.6
-torchmetrics==1.0.3
+pytorch-lightning
+torchmetrics
 
 # --------- hydra --------- #
 hydra-core==1.2.0
@@ -21,3 +21,15 @@ pre-commit      # hooks for applying linters on commit
 rich            # beautiful text formatting in terminal
 pytest          # tests
 sh              # for running bash commands in some tests
+planetary_computer
+odc-stac
+rasterio
+rioxarray
+geopandas
+fsspec
+dask
+pystac-client
+geojson
+shapely
+area
+pyproj
