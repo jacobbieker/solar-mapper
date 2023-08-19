@@ -7,33 +7,8 @@ from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
 
 
-class MNISTDataModule(LightningDataModule):
-    """Example of LightningDataModule for MNIST dataset.
-
-    A DataModule implements 5 key methods:
-
-        def prepare_data(self):
-            # things to do on 1 GPU/TPU (not on every GPU/TPU in DDP)
-            # download data, pre-process, split, save to disk, etc...
-        def setup(self, stage):
-            # things to do on every process in DDP
-            # load data, set variables, etc...
-        def train_dataloader(self):
-            # return train dataloader
-        def val_dataloader(self):
-            # return validation dataloader
-        def test_dataloader(self):
-            # return test dataloader
-        def teardown(self):
-            # called on every process in DDP
-            # clean up after fit or test
-
-    This allows you to share a full dataset without explaining how to download,
-    split, transform and process the data.
-
-    Read the docs:
-        https://pytorch-lightning.readthedocs.io/en/latest/extensions/datamodules.html
-    """
+class Sentinel2DataModule(LightningDataModule):
+    """Example of LightningDataModule for Sentinel-2 dataset."""
 
     def __init__(
         self,
