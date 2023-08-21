@@ -33,4 +33,3 @@ geojson
 shapely
 area
 pyproj
-stackstac

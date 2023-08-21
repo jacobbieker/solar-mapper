@@ -1,7 +1,7 @@
 from pystac.extensions.eo import EOExtension as eo
 import pystac_client
 import planetary_computer
-import stackstac
+from odc.stac import configure_rio, stac_load
 import json
 from rasterio.features import rasterize
 
@@ -14,6 +14,18 @@ TODO:
 5. Download the Sentinel 2 image
 '''
 
+# Configuration for ODC-STAC
+cfg = {
+    "sentinel-2-l2a": {
+        "assets": {
+            "*": {"data_type": "uint16", "nodata": 0},
+            "SCL": {"data_type": "uint8", "nodata": 0},
+            "visual": {"data_type": "uint8", "nodata": 0},
+        },
+    },
+    "*": {"warnings": "ignore"},
+}
+
 def get_catalog():
     return pystac_client.Client.open(
         "https://planetarycomputer.microsoft.com/api/stac/v1",
@@ -22,6 +34,7 @@ def get_catalog():
 
 def get_area_of_interest(feature, time_period:str="2023-04-01/2023-08-01", catalog=get_catalog()):
     ## returns the coords in the GeoJSON
+    resolution = 10
     area_of_interest = feature['geometry']
     ## Search sentinel 2 catalog
     items = catalog.search(
@@ -31,7 +44,13 @@ def get_area_of_interest(feature, time_period:str="2023-04-01/2023-08-01", catal
         query={"eo:cloud_cover": {"lt": 10}},
     ).get_all_items()
 
-    stack = stackstac.stack(items)
+    stack = stac_load(
+        items,
+        chunks={"x": 2048, "y": 2048},
+        stac_cfg=cfg,
+        patch_url=planetary_computer.sign,
+        resolution=resolution,
+    )
 
     return stack
 
@@ -50,4 +69,21 @@ def make_segmentation_maps(pv_site, stack):
 
     """
     return NotImplementedError("Masking is not implemented yet")
+
+def get_aoi_around_pv_sites(pv_sites):
+    """
+    Generate area of interest around PV sites of a minimum size
+
+    This will get overlapping tiles
+
+    Args:
+        pv_sites:
+
+    Returns:
+
+    """
+    return NotImplementedError("AOI generation is not implemented yet")
+
+def build_dataset_of_stacks(tile_file, pv_file):
+    pass
 
