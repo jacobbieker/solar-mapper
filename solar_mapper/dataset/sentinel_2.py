@@ -1,18 +1,12 @@
-from pystac.extensions.eo import EOExtension as eo
 import pystac_client
 import planetary_computer
+from datetime import datetime, timedelta
 from odc.stac import configure_rio, stac_load
+import xarray as xr
+import numpy as np
 import json
 from rasterio.features import rasterize
 
-'''
-TODO:
-1. Download the files from Zenodo if not already exists
-2. Unzip the files
-3. Load the GeoJSON file
-4. For each tile in the GeoJSON file, find the corresponding Sentinel 2 image
-5. Download the Sentinel 2 image
-'''
 
 # Configuration for ODC-STAC
 cfg = {
@@ -32,7 +26,7 @@ def get_catalog():
         modifier=planetary_computer.sign_inplace,
     )
 
-def get_area_of_interest(feature, time_period:str="2023-04-01/2023-08-01", catalog=get_catalog()):
+def get_area_of_interest(feature, time_period:str="2023-04-01/2023-08-01", num_samples=100, sortby_clouds=True, catalog=get_catalog()):
     ## returns the coords in the GeoJSON
     resolution = 10
     area_of_interest = feature['geometry']
@@ -41,16 +35,18 @@ def get_area_of_interest(feature, time_period:str="2023-04-01/2023-08-01", catal
         collections=["sentinel-2-l2a"],
         intersects=area_of_interest,
         datetime=time_period,
-        query={"eo:cloud_cover": {"lt": 10}},
-    ).get_all_items()
-
+        sortby="eo:cloud_cover" if sortby_clouds else None,
+    ).pages()
+    all_items = [item for page in items for item in page]
+    all_items = all_items[:num_samples] # Limit to max_images
     stack = stac_load(
-        items,
-        chunks={"x": 2048, "y": 2048},
+        all_items,
+        chunks={"x": 512, "y": 512},
         stac_cfg=cfg,
-        patch_url=planetary_computer.sign,
         resolution=resolution,
     )
+    # Always check that the time is in order
+    stack = stack.sortby("time", ascending=True)
 
     return stack
 
@@ -70,20 +66,43 @@ def make_segmentation_maps(pv_site, stack):
     """
     return NotImplementedError("Masking is not implemented yet")
 
-def get_aoi_around_pv_sites(pv_sites):
-    """
-    Generate area of interest around PV sites of a minimum size
 
-    This will get overlapping tiles
+def randomly_sample_from_valid_times(example: dict, start_time: datetime, end_time: datetime, search_delta: timedelta = timedelta(days=90), num_samples: int=1) -> xr.Dataset:
+    """
+    Randomly sample a time period from the valid times of an example
 
     Args:
-        pv_sites:
+        example: Example GeoJSON
+        start_time: datetime of the start period to search from
+        end_time: datetime of the end period to search from
+        search_delta: length of the time period to search
+        num_samples: number of samples to take
 
     Returns:
-
+        Image stack from that period, with at most num_samples
     """
-    return NotImplementedError("AOI generation is not implemented yet")
+    # Pick a random time period within start_time and end_time, and after 'Date' field in example['properties']
+    example_date = datetime.strptime(example['properties']['Date'], "%Y-%m-%d %H:%M:%S")
+    start_time = max(start_time, example_date)
+    end_time = max(end_time, example_date + search_delta)
+    search_start_time = start_time + (end_time - start_time - search_delta) * np.random.random()
+    search_period = search_start_time.strftime("%Y-%m-%d") + "/" + (search_start_time + search_delta).strftime("%Y-%m-%d")
+    stack = get_area_of_interest(example, time_period=search_period, num_samples=num_samples)
+    return stack
 
-def build_dataset_of_stacks(tile_file, pv_file):
-    pass
+def get_example(examples: list, start_time: datetime, end_time: datetime, search_delta: timedelta, num_samples: int=1) -> xr.Dataset:
+    """
+    Randomly sample an example from a list of examples
 
+    Args:
+        examples: List of example GeoJSONs
+        start_time: datetime of the start period to search from
+        end_time: datetime of the end period to search from
+        search_delta: length of the time period to search
+        num_samples: number of samples to take
+
+    Returns:
+        Image stack from that period, with at most num_samples
+    """
+    example = examples[np.random.randint(len(examples))]
+    return randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
