@@ -4,9 +4,18 @@ from datetime import datetime, timedelta
 from odc.stac import configure_rio, stac_load
 import xarray as xr
 import numpy as np
+import rioxarray
 import json
-from rasterio.features import rasterize
-
+import geopandas as gpd
+import rasterio
+from rasterio.crs import CRS
+from rasterio.features import rasterize, warp
+from pyproj import Transformer
+from shapely.geometry import Point
+from shapely.ops import transform
+import pyproj
+from shapely.geometry import shape
+from shapely.geometry.polygon import Polygon
 
 # Configuration for ODC-STAC
 cfg = {
@@ -20,13 +29,16 @@ cfg = {
     "*": {"warnings": "ignore"},
 }
 
+
 def get_catalog():
     return pystac_client.Client.open(
         "https://planetarycomputer.microsoft.com/api/stac/v1",
         modifier=planetary_computer.sign_inplace,
     )
 
-def get_area_of_interest(feature, time_period:str="2023-04-01/2023-08-01", num_samples=100, sortby_clouds=True, catalog=get_catalog()):
+
+def get_area_of_interest(feature, time_period: str = "2023-04-01/2023-08-01", num_samples=100, sortby_clouds=True,
+                         catalog=get_catalog()):
     ## returns the coords in the GeoJSON
     resolution = 10
     area_of_interest = feature['geometry']
@@ -38,17 +50,22 @@ def get_area_of_interest(feature, time_period:str="2023-04-01/2023-08-01", num_s
         sortby="eo:cloud_cover" if sortby_clouds else None,
     ).pages()
     all_items = [item for page in items for item in page]
-    all_items = all_items[:num_samples] # Limit to max_images
+    all_items = all_items[:num_samples]  # Limit to max_images
+    print(all_items)
     stack = stac_load(
         all_items,
-        chunks={"x": 512, "y": 512},
+        chunks={"x": 1024, "y": 1024},
         stac_cfg=cfg,
+        #crs="EPSG:4326",
+        #resolution=0.00009009
+        crs="utm",
         resolution=resolution,
     )
     # Always check that the time is in order
     stack = stack.sortby("time", ascending=True)
 
     return stack
+
 
 def make_segmentation_maps(pv_site, stack):
     """
@@ -64,10 +81,31 @@ def make_segmentation_maps(pv_site, stack):
     Returns:
 
     """
-    return NotImplementedError("Masking is not implemented yet")
+    # Project the feature to the desired CRS
+    feature_proj = warp.transform_geom(
+        CRS.from_epsg(4326),
+        CRS.from_epsg(stack.spatial_ref.values),
+        pv_site['geometry']
+    )
+    out_shape = stack.isel(time=0).visual.shape
+    # Convert each point in geometry to pixel coordinates
+    coords = feature_proj['coordinates'][0]
+    y_coords = stack.y.values
+    x_coords = stack.x.values
+    for i, coord in enumerate(coords):
+        # Have to convert to pixel coordinates, so get closest pixels
+        y_coord = np.abs(y_coords - coord[1]).argmin()
+        x_coord = np.abs(x_coords - coord[0]).argmin()
+        coords[i] = [int(x_coord), int(y_coord)]
+    pv_site['geometry']['coordinates'] = [coords]
+    output = rasterize(shapes=[pv_site['geometry']], out_shape=out_shape, fill=0, default_value=1)
+    # Add the segmentation map to the stack
+    stack['segmentation_map'] = xr.DataArray(output, dims=['y', 'x'])
+    return stack
 
 
-def randomly_sample_from_valid_times(example: dict, start_time: datetime, end_time: datetime, search_delta: timedelta = timedelta(days=90), num_samples: int=1) -> xr.Dataset:
+def randomly_sample_from_valid_times(example: dict, start_time: datetime, end_time: datetime,
+                                     search_delta: timedelta = timedelta(days=90), num_samples: int = 1) -> xr.Dataset:
     """
     Randomly sample a time period from the valid times of an example
 
@@ -86,11 +124,14 @@ def randomly_sample_from_valid_times(example: dict, start_time: datetime, end_ti
     start_time = max(start_time, example_date)
     end_time = max(end_time, example_date + search_delta)
     search_start_time = start_time + (end_time - start_time - search_delta) * np.random.random()
-    search_period = search_start_time.strftime("%Y-%m-%d") + "/" + (search_start_time + search_delta).strftime("%Y-%m-%d")
+    search_period = search_start_time.strftime("%Y-%m-%d") + "/" + (search_start_time + search_delta).strftime(
+        "%Y-%m-%d")
     stack = get_area_of_interest(example, time_period=search_period, num_samples=num_samples)
     return stack
 
-def get_example(examples: list, start_time: datetime, end_time: datetime, search_delta: timedelta, num_samples: int=1) -> xr.Dataset:
+
+def get_training_example(examples: list, start_time: datetime, end_time: datetime, search_delta: timedelta,
+                         num_samples: int = 1) -> xr.Dataset:
     """
     Randomly sample an example from a list of examples
 
