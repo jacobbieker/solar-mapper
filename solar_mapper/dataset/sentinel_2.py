@@ -51,7 +51,6 @@ def get_area_of_interest(feature, time_period: str = "2023-04-01/2023-08-01", nu
     ).pages()
     all_items = [item for page in items for item in page]
     all_items = all_items[:num_samples]  # Limit to max_images
-    print(all_items)
     stack = stac_load(
         all_items,
         chunks={"x": 1024, "y": 1024},
