@@ -1,21 +1,12 @@
+import geojson
 import pystac_client
 import planetary_computer
 from datetime import datetime, timedelta
-from odc.stac import configure_rio, stac_load
+from odc.stac import stac_load
 import xarray as xr
 import numpy as np
-import rioxarray
-import json
-import geopandas as gpd
-import rasterio
 from rasterio.crs import CRS
 from rasterio.features import rasterize, warp
-from pyproj import Transformer
-from shapely.geometry import Point
-from shapely.ops import transform
-import pyproj
-from shapely.geometry import shape
-from shapely.geometry.polygon import Polygon
 
 # Configuration for ODC-STAC
 cfg = {
@@ -30,7 +21,7 @@ cfg = {
 }
 
 
-def get_catalog():
+def get_catalog() -> pystac_client.Client:
     return pystac_client.Client.open(
         "https://planetarycomputer.microsoft.com/api/stac/v1",
         modifier=planetary_computer.sign_inplace,
@@ -38,7 +29,7 @@ def get_catalog():
 
 
 def get_area_of_interest(feature, time_period: str = "2023-04-01/2023-08-01", num_samples=100, sortby_clouds=True,
-                         catalog=get_catalog()):
+                         catalog=get_catalog()) -> xr.Dataset:
     ## returns the coords in the GeoJSON
     resolution = 10
     area_of_interest = feature['geometry']
@@ -66,7 +57,7 @@ def get_area_of_interest(feature, time_period: str = "2023-04-01/2023-08-01", nu
     return stack
 
 
-def make_segmentation_maps(pv_site, stack):
+def make_segmentation_maps(pv_site: geojson.GeoJSON, stack: xr.Dataset) -> xr.Dataset:
     """
     Convert GeoJSON PV Site polygons to segmentation maps
 
@@ -74,16 +65,16 @@ def make_segmentation_maps(pv_site, stack):
     and adds it as a dataset in the stack
 
     Args:
-        pv_site:
-        stack:
+        pv_site: GeoJSON of the PV site
+        stack: xarray dataset of the stack
 
     Returns:
-
+        xarray dataset with segmentation map added
     """
     # Project the feature to the desired CRS
     feature_proj = warp.transform_geom(
-        CRS.from_epsg(4326),
-        CRS.from_epsg(stack.spatial_ref.values),
+        CRS.from_epsg(4326), # Lat/Lon
+        CRS.from_epsg(stack.spatial_ref.values), # Local UTM
         pv_site['geometry']
     )
     out_shape = stack.isel(time=0).visual.shape
