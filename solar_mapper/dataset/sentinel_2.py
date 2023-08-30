@@ -137,3 +137,17 @@ def get_training_example(examples: list, start_time: datetime, end_time: datetim
     """
     example = examples[np.random.randint(len(examples))]
     return randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
+
+
+def load_and_get_examples_from_geojson(geojson_file: str, start_time: datetime, end_time: datetime,
+                                       search_delta: timedelta = timedelta(days=90), num_samples: int = 1):
+    with open(geojson_file) as f:
+        polygons = geojson.load(f)
+    while True:
+        example = polygons['features'][np.random.randint(len(polygons['features']))]
+        try:
+            stack = randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
+            stack = make_segmentation_maps(example, stack)
+            yield stack
+        except ValueError:
+            continue
