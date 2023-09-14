@@ -10,7 +10,7 @@ install_requires = (this_directory / "requirements.txt").read_text().splitlines(
 
 setup(
     name="solar_mapper",
-    version="0.0.1",
+    version="0.0.2",
     description="Global Solar Mapping with Satellite Imagery",
     author="Jacob Bieker",
     author_email="jacob@bieker.tech",
