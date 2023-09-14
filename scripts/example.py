@@ -26,3 +26,6 @@ print(non_zero_center)
 seg_mask_cutout = seg_mask.where(seg_mask != 0).isel(x=slice(int(non_zero_center[1]-100), int(non_zero_center[1]+100)), y=slice(int(non_zero_center[0]-100), int(non_zero_center[0]+100)))
 plt.imshow(seg_mask_cutout)
 plt.show()
+# Visual
+plt.imshow(train_example['visual'].isel(time=0,x=slice(int(non_zero_center[1]-100), int(non_zero_center[1]+100)), y=slice(int(non_zero_center[0]-100), int(non_zero_center[0]+100))))
+plt.show()
