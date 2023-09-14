@@ -11,3 +11,6 @@ train_example = get_example_with_segmentation_map(polygons['train'][0],
                                                   search_delta=datetime.timedelta(days=90),
                                                   num_samples=8)
 print(train_example)
+seg_mask = train_example['segmentation_map']
+# How many pixels are non-zero in the segmentation map? Should come out to 394
+print(f"Number of non-zero pixels in segmentation map: {seg_mask.sum().values}")
