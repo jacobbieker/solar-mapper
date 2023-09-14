@@ -140,14 +140,19 @@ def get_training_example(examples: list, start_time: datetime, end_time: datetim
     return randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
 
 
+def get_example_with_segmentation_map(example: geojson.GeoJSON, start_time: datetime, end_time: datetime,search_delta: timedelta, num_samples: int = 1) -> xr.Dataset:
+    stack = randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
+    stack = make_segmentation_maps(example, stack)
+    return stack
+
+
 def load_and_get_examples_from_geojson(geojson_file: str, start_time: datetime, end_time: datetime,
                                        search_delta: timedelta = timedelta(days=90), num_samples: int = 1):
     polygons = geojson.load(fsspec.open(geojson_file).open())
     while True:
         example = polygons['features'][np.random.randint(len(polygons['features']))]
         try:
-            stack = randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
-            stack = make_segmentation_maps(example, stack)
+            stack = get_example_with_segmentation_map(example, start_time, end_time, search_delta, num_samples)
             yield stack
         except ValueError:
             continue
