@@ -7,6 +7,7 @@ import xarray as xr
 import numpy as np
 from rasterio.crs import CRS
 from rasterio.features import rasterize, warp
+import fsspec
 
 # Configuration for ODC-STAC
 cfg = {
@@ -141,8 +142,7 @@ def get_training_example(examples: list, start_time: datetime, end_time: datetim
 
 def load_and_get_examples_from_geojson(geojson_file: str, start_time: datetime, end_time: datetime,
                                        search_delta: timedelta = timedelta(days=90), num_samples: int = 1):
-    with open(geojson_file) as f:
-        polygons = geojson.load(f)
+    polygons = geojson.load(fsspec.open(geojson_file).open())
     while True:
         example = polygons['features'][np.random.randint(len(polygons['features']))]
         try:

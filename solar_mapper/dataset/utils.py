@@ -1,4 +1,17 @@
-import requests, json, os, logging, math
+import requests, json, os, logging, math, geojson
+import fsspec
+
+
+def get_global_pv_mapping_polygons():
+    """
+    Returns a list of polygons that represent the global PV mapping
+    """
+    cv_polygons = geojson.load(fsspec.open("https://zenodo.org/record/5005868/files/cv_polygons.geojson").open())
+    trn_polygons = geojson.load(fsspec.open("https://zenodo.org/record/5005868/files/trn_polygons.geojson").open())
+    test_polygons = geojson.load(fsspec.open("https://zenodo.org/record/5005868/files/test_polygons.geojson").open())
+    predicted_polygons = None #geojson.load(fsspec.open("https://zenodo.org/record/5005868/files/predicted_set.geojson").open())
+    # Predicted set throws an error when opening with geoJSON, about NaN not being valid JSON.
+    return {"cv": cv_polygons, "train": trn_polygons, "test": test_polygons, "predicted": predicted_polygons}
 
 def V_inv(point1, point2, miles=False):
 
