@@ -6,8 +6,8 @@ import datetime
 polygons = get_global_pv_mapping_polygons()
 # Generate random examples with the train polygons up to 2018, and add mask from PV site
 train_example = get_example_with_segmentation_map(polygons['train'][0],
-                                                  start_time=datetime.datetime(2016, 1, 1),
-                                                  end_time=datetime.datetime(2018, 1, 1),
+                                                  start_time=datetime.datetime(2015, 1, 1),
+                                                  end_time=datetime.datetime(2018, 12, 31),
                                                   search_delta=datetime.timedelta(days=90),
                                                   num_samples=8)
 print(train_example)
@@ -18,7 +18,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 # Get the index of the first non-zero element
 non_zero_idx = np.nonzero(seg_mask.values)
-print(non_zero_idx)
 # Get the center of the non-zero elements
 non_zero_center = np.mean(non_zero_idx, axis=1)
 print(non_zero_center)

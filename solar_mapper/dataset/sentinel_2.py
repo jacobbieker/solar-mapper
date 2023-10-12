@@ -111,7 +111,9 @@ def randomly_sample_from_valid_times(example: dict, start_time: datetime, end_ti
         Image stack from that period, with at most num_samples
     """
     # Pick a random time period within start_time and end_time, and after 'Date' field in example['properties']
-    example_date = datetime.strptime(example['properties']['Date'], "%Y-%m-%d %H:%M:%S")
+    # If no 'Date' field, use start_time
+    date_time: str = example['properties'].get('Date', start_time.strftime("%Y-%m-%d %H:%M:%S"))
+    example_date: datetime = datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S")
     start_time = max(start_time, example_date)
     end_time = max(end_time, example_date + search_delta)
     search_start_time = start_time + (end_time - start_time - search_delta) * np.random.random()
