@@ -13,6 +13,12 @@ def get_global_pv_mapping_polygons():
     # Predicted set throws an error when opening with geoJSON, about NaN not being valid JSON.
     return {"cv": cv_polygons, "train": trn_polygons, "test": test_polygons, "predicted": predicted_polygons}
 
+
+def get_global_energy_monitor_polygons():
+    solar_plants = geojson.load(fsspec.open("zip://*.geojson::https://globalenergymonitor.org/wp-content/uploads/2023/01/Global-Solar-Power-Tracker-January-2023-GIS.zip").open())
+    return solar_plants
+
+
 def V_inv(point1, point2, miles=False):
 
     # WGS 84

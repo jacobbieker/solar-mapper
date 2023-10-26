@@ -9,6 +9,7 @@ from rasterio.crs import CRS
 from rasterio.features import rasterize, warp
 import fsspec
 import pandas as pd
+from copy import deepcopy
 
 # Configuration for ODC-STAC
 cfg = {
@@ -48,8 +49,8 @@ def get_area_of_interest(feature, time_period: str = "2023-04-01/2023-08-01", nu
         all_items,
         chunks={"x": 1024, "y": 1024},
         stac_cfg=cfg,
-        #crs="EPSG:4326",
-        #resolution=0.00009009
+        # crs="EPSG:4326",
+        # resolution=0.00009009
         crs="utm",
         resolution=resolution,
     )
@@ -75,8 +76,8 @@ def make_segmentation_maps(pv_site: geojson.GeoJSON, stack: xr.Dataset) -> xr.Da
     """
     # Project the feature to the desired CRS
     feature_proj = warp.transform_geom(
-        CRS.from_epsg(4326), # Lat/Lon
-        CRS.from_epsg(stack.spatial_ref.values), # Local UTM
+        CRS.from_epsg(4326),  # Lat/Lon
+        CRS.from_epsg(stack.spatial_ref.values),  # Local UTM
         pv_site['geometry']
     )
     out_shape = stack.isel(time=0).visual.shape
@@ -97,7 +98,8 @@ def make_segmentation_maps(pv_site: geojson.GeoJSON, stack: xr.Dataset) -> xr.Da
 
 
 def randomly_sample_from_valid_times(example: dict, start_time: datetime, end_time: datetime,
-                                     search_delta: timedelta = timedelta(days=90), num_samples: int = 1) -> xr.Dataset:
+                                     search_delta: timedelta = timedelta(days=90), num_samples: int = 1,
+                                     date_property_name: str = 'Date') -> xr.Dataset:
     """
     Randomly sample a time period from the valid times of an example
 
@@ -143,14 +145,18 @@ def get_training_example(examples: list, start_time: datetime, end_time: datetim
     return randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
 
 
-def get_example_with_segmentation_map(example: geojson.GeoJSON, start_time: datetime, end_time: datetime,search_delta: timedelta, num_samples: int = 1) -> xr.Dataset:
+def get_example_with_segmentation_map(example: geojson.GeoJSON, start_time: datetime, end_time: datetime,
+                                      search_delta: timedelta, num_samples: int = 1) -> xr.Dataset:
     stack = randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
     stack = make_segmentation_maps(example, stack)
     return stack
 
-def get_example_without_segmentation_map(example: geojson.GeoJSON, start_time: datetime, end_time: datetime,search_delta: timedelta, num_samples: int = 1) -> xr.Dataset:
+
+def get_example_without_segmentation_map(example: geojson.GeoJSON, start_time: datetime, end_time: datetime,
+                                         search_delta: timedelta, num_samples: int = 1) -> xr.Dataset:
     stack = randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
     return stack
+
 
 def load_and_get_examples_from_geojson(geojson_file: str, start_time: datetime, end_time: datetime,
                                        search_delta: timedelta = timedelta(days=90), num_samples: int = 1):
@@ -164,39 +170,26 @@ def load_and_get_examples_from_geojson(geojson_file: str, start_time: datetime, 
             continue
 
 
-def load_and_get_examples_from_gem(xlsx_file: str, start_time: datetime, end_time: datetime, search_delta: timedelta = timedelta(days=90), num_samples: int = 1):
-    df: pd.DataFrame = get_gem_solar_plant_locations(xlsx_file, start_time=start_time, end_time=end_time)
-    for i, row in df.iterrows():
+def load_and_get_examples_from_gem(gem_geojson: geojson.GeoJSON, start_time: datetime, end_time: datetime,
+                                   search_delta: timedelta = timedelta(days=90), num_samples: int = 1):
+    polygons = filter_gem_examples(gem_geojson, start_time, end_time)
+    while True:
+        example = polygons['features'][np.random.randint(len(polygons['features']))]
         try:
-            stack = get_example_without_segmentation_map(construct_geojson_from_gem(row), start_time, end_time, search_delta, num_samples)
+            stack = get_example_without_segmentation_map(example, start_time, end_time, search_delta, num_samples)
             yield stack
         except ValueError:
             continue
 
 
-def get_gem_solar_plant_locations(xlsx_filename: str, start_time: datetime, end_time: datetime) -> pd.DataFrame:
-    solar_data = pd.read_excel(fsspec.open(xlsx_filename).open(), sheet_name=None)['Data']
-    # Get Start year, Retired year, Latitude and Longitude
-    solar_data = solar_data[['Start year', 'Retired year', 'Latitude', 'Longitude']]
-    # Drop rows with NaN values for Start year, latitude or longitude
-    solar_data = solar_data.dropna(subset=['Start year', 'Latitude', 'Longitude'])
-    # Remove rows with start year after end_time
-    solar_data = solar_data[solar_data['Start year'] < end_time.year]
-    # Remove rows with retired year before start_time
-    solar_data = solar_data[solar_data['Retired year'] > start_time.year]
-    return solar_data
+def filter_gem_examples(gem_geojson: geojson.GeoJSON, start_time: datetime, end_time: datetime) -> geojson.GeoJSON:
+    # Remove examples in geojson that have a "Start year" of null or "Retired year" of null
+    filtered_examples = []
+    filtered_geojson = deepcopy(gem_geojson)
+    for example in gem_geojson['features']:
+        if example['properties']['Start year'] is not None and int(example['properties']['Start year']) < end_time.year \
+                and (example['properties']['Retired year'] is None or int(example['properties']['Retired year']) > start_time.year):
+            filtered_examples.append(example)
+    filtered_geojson['features'] = filtered_examples
+    return filtered_geojson
 
-def construct_geojson_from_gem(gem_example):
-    geojson_example = {}
-    geojson_example['type'] = 'Feature'
-    geojson_example['properties'] = {}
-    geojson_example['properties']['Date'] = str(gem_example['Start year']) + '-01-01 00:00:00'
-    geojson_example['geometry'] = {}
-    geojson_example['geometry']['type'] = 'Polygon'
-    geojson_example['geometry']['coordinates'] = [[[gem_example['Longitude'] - 0.001, gem_example['Latitude'] - 0.001],
-                                                    [gem_example['Longitude'] + 0.001, gem_example['Latitude'] - 0.001],
-                                                    [gem_example['Longitude'] + 0.001, gem_example['Latitude'] + 0.001],
-                                                    [gem_example['Longitude'] - 0.001, gem_example['Latitude'] + 0.001],
-                                                    [gem_example['Longitude'] - 0.001, gem_example['Latitude'] - 0.001]]]
-    geojson_example = geojson.loads(geojson_example)
-    return geojson_example

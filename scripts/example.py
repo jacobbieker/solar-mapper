@@ -1,11 +1,11 @@
-from solar_mapper.dataset.sentinel_2 import get_example_with_segmentation_map
-from solar_mapper.dataset.utils import get_global_pv_mapping_polygons
+from solar_mapper.dataset.sentinel_2 import get_example_with_segmentation_map, get_example_without_segmentation_map
+from solar_mapper.dataset.utils import get_global_pv_mapping_polygons, get_global_energy_monitor_polygons
 import datetime
 
 # Get the polygons to use
 polygons = get_global_pv_mapping_polygons()
 # Generate random examples with the train polygons up to 2018, and add mask from PV site
-train_example = get_example_with_segmentation_map(polygons['train'][2000],
+train_example = get_example_with_segmentation_map(polygons['train'][0],
                                                   start_time=datetime.datetime(2015, 1, 1),
                                                   end_time=datetime.datetime(2018, 12, 31),
                                                   search_delta=datetime.timedelta(days=90),
