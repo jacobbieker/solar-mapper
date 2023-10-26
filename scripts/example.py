@@ -1,7 +1,8 @@
-from solar_mapper.dataset.sentinel_2 import get_example_with_segmentation_map, get_example_without_segmentation_map
+from solar_mapper.dataset.sentinel_2 import get_example_with_segmentation_map, load_and_get_examples_from_gem
 from solar_mapper.dataset.utils import get_global_pv_mapping_polygons, get_global_energy_monitor_polygons
 import datetime
 
+gem_geojson = get_global_energy_monitor_polygons()
 # Get the polygons to use
 polygons = get_global_pv_mapping_polygons()
 # Generate random examples with the train polygons up to 2018, and add mask from PV site
@@ -28,3 +29,4 @@ plt.show()
 # Visual
 plt.imshow(train_example['visual'].isel(time=0,x=slice(int(non_zero_center[1]-100), int(non_zero_center[1]+100)), y=slice(int(non_zero_center[0]-100), int(non_zero_center[0]+100))))
 plt.show()
+

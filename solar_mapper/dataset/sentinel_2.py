@@ -115,6 +115,7 @@ def randomly_sample_from_valid_times(example: dict, start_time: datetime, end_ti
     """
     # Pick a random time period within start_time and end_time, and after 'Date' field in example['properties']
     # If no 'Date' field, use start_time
+    print(example)
     date_time: str = example['properties'].get('Date', start_time.strftime("%Y-%m-%d %H:%M:%S"))
     example_date: datetime = datetime.strptime(date_time, "%Y-%m-%d %H:%M:%S")
     start_time = max(start_time, example_date)
