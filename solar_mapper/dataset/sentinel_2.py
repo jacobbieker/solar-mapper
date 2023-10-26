@@ -8,6 +8,7 @@ import numpy as np
 from rasterio.crs import CRS
 from rasterio.features import rasterize, warp
 import fsspec
+import pandas as pd
 
 # Configuration for ODC-STAC
 cfg = {
@@ -147,6 +148,9 @@ def get_example_with_segmentation_map(example: geojson.GeoJSON, start_time: date
     stack = make_segmentation_maps(example, stack)
     return stack
 
+def get_example_without_segmentation_map(example: geojson.GeoJSON, start_time: datetime, end_time: datetime,search_delta: timedelta, num_samples: int = 1) -> xr.Dataset:
+    stack = randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
+    return stack
 
 def load_and_get_examples_from_geojson(geojson_file: str, start_time: datetime, end_time: datetime,
                                        search_delta: timedelta = timedelta(days=90), num_samples: int = 1):
@@ -158,3 +162,41 @@ def load_and_get_examples_from_geojson(geojson_file: str, start_time: datetime, 
             yield stack
         except ValueError:
             continue
+
+
+def load_and_get_examples_from_gem(xlsx_file: str, start_time: datetime, end_time: datetime, search_delta: timedelta = timedelta(days=90), num_samples: int = 1):
+    df: pd.DataFrame = get_gem_solar_plant_locations(xlsx_file, start_time=start_time, end_time=end_time)
+    for i, row in df.iterrows():
+        try:
+            stack = get_example_without_segmentation_map(construct_geojson_from_gem(row), start_time, end_time, search_delta, num_samples)
+            yield stack
+        except ValueError:
+            continue
+
+
+def get_gem_solar_plant_locations(xlsx_filename: str, start_time: datetime, end_time: datetime) -> pd.DataFrame:
+    solar_data = pd.read_excel(fsspec.open(xlsx_filename).open(), sheet_name=None)['Data']
+    # Get Start year, Retired year, Latitude and Longitude
+    solar_data = solar_data[['Start year', 'Retired year', 'Latitude', 'Longitude']]
+    # Drop rows with NaN values for Start year, latitude or longitude
+    solar_data = solar_data.dropna(subset=['Start year', 'Latitude', 'Longitude'])
+    # Remove rows with start year after end_time
+    solar_data = solar_data[solar_data['Start year'] < end_time.year]
+    # Remove rows with retired year before start_time
+    solar_data = solar_data[solar_data['Retired year'] > start_time.year]
+    return solar_data
+
+def construct_geojson_from_gem(gem_example):
+    geojson_example = {}
+    geojson_example['type'] = 'Feature'
+    geojson_example['properties'] = {}
+    geojson_example['properties']['Date'] = str(gem_example['Start year']) + '-01-01 00:00:00'
+    geojson_example['geometry'] = {}
+    geojson_example['geometry']['type'] = 'Polygon'
+    geojson_example['geometry']['coordinates'] = [[[gem_example['Longitude'] - 0.001, gem_example['Latitude'] - 0.001],
+                                                    [gem_example['Longitude'] + 0.001, gem_example['Latitude'] - 0.001],
+                                                    [gem_example['Longitude'] + 0.001, gem_example['Latitude'] + 0.001],
+                                                    [gem_example['Longitude'] - 0.001, gem_example['Latitude'] + 0.001],
+                                                    [gem_example['Longitude'] - 0.001, gem_example['Latitude'] - 0.001]]]
+    geojson_example = geojson.loads(geojson_example)
+    return geojson_example
