@@ -19,6 +19,11 @@ cfg = {
             "SCL": {"data_type": "uint8", "nodata": 0},
             "visual": {"data_type": "uint8", "nodata": 0},
         },
+        "sentinel-1-rtc": {
+            "assets": {
+                "*": {"data_type": "float32", "nodata": 0},
+            },
+        }
     },
     "*": {"warnings": "ignore"},
 }
@@ -54,13 +59,33 @@ def get_area_of_interest(feature, time_period: str = "2023-04-01/2023-08-01", nu
         crs="utm",
         resolution=resolution,
     )
+    ## Search Sentinel-1 catalog
+    items = catalog.search(
+        collections=["sentinel-1-rtc"],
+        intersects=area_of_interest,
+        datetime=time_period,
+        sortby="datetime"
+    ).pages()
+    all_items = [item for page in items for item in page]
+    all_items = all_items[:num_samples]  # Limit to max_images
+    stack_s1 = stac_load(
+        all_items,
+        chunks={"x": 1024, "y": 1024},
+        stac_cfg=cfg,
+        # crs="EPSG:4326",
+        # resolution=0.00009009
+        crs="utm",
+        resolution=resolution,
+    )
     # Always check that the time is in order
     stack = stack.sortby("time", ascending=True)
+    stack_s1 = stack_s1.sortby("time", ascending=True)
+    # Merge the two stacks
 
-    return stack
+    return stack, stack_s1
 
 
-def make_segmentation_maps(pv_site: geojson.GeoJSON, stack: xr.Dataset) -> xr.Dataset:
+def make_segmentation_maps(pv_site: geojson.GeoJSON, stack: xr.Dataset, epsg: int= 4326) -> xr.Dataset:
     """
     Convert GeoJSON PV Site polygons to segmentation maps
 
@@ -76,11 +101,12 @@ def make_segmentation_maps(pv_site: geojson.GeoJSON, stack: xr.Dataset) -> xr.Da
     """
     # Project the feature to the desired CRS
     feature_proj = warp.transform_geom(
-        CRS.from_epsg(4326),  # Lat/Lon
+        CRS.from_epsg(epsg),  # Lat/Lon
         CRS.from_epsg(stack.spatial_ref.values),  # Local UTM
         pv_site['geometry']
     )
-    out_shape = stack.isel(time=0).visual.shape
+    data_var_to_use = stack.data_vars[list(stack.data_vars.keys())[0]].name
+    out_shape = stack.isel(time=0)[data_var_to_use].shape
     # Convert each point in geometry to pixel coordinates
     coords = feature_proj['coordinates'][0]
     y_coords = stack.y.values
@@ -148,9 +174,10 @@ def get_training_example(examples: list, start_time: datetime, end_time: datetim
 
 def get_example_with_segmentation_map(example: geojson.GeoJSON, start_time: datetime, end_time: datetime,
                                       search_delta: timedelta, num_samples: int = 1) -> xr.Dataset:
-    stack = randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
-    stack = make_segmentation_maps(example, stack)
-    return stack
+    stack_s2, stack_s1 = randomly_sample_from_valid_times(example, start_time, end_time, search_delta, num_samples)
+    stack_s2 = make_segmentation_maps(example, stack_s2)
+    stack_s1 = make_segmentation_maps(example, stack_s1, epsg=32617)
+    return stack_s2, stack_s1
 
 
 def get_example_without_segmentation_map(example: geojson.GeoJSON, start_time: datetime, end_time: datetime,
